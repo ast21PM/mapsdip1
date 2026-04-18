@@ -721,7 +721,7 @@
       return {
         label: "Хорошо",
         className: "good",
-        fill: "#8cbf45",
+        fill: "#a58df6",
         stroke: "#658a26",
       };
     }
