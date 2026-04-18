@@ -726,6 +726,7 @@
       };
     }
 
+    
     if (rssi > -100) {
       return {
         label: "Норм",

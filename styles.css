@@ -576,6 +576,7 @@ body.presentation-mode .map-frame {
     grid-template-columns: 1.4fr 0.8fr;
   }
 
+  
   .map-frame {
     height: 520px;
   }
