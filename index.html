@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
+    />
+    <title>ERLS Map Logger</title>
+    <meta
+      name="description"
+      content="Интерактивная карта замеров RSSI/SNR для дипломного проекта на LilyGo LR1121."
+    />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero panel">
+        <div>
+          <p class="eyebrow">ERLS / LILYGO LR1121</p>
+          <h1>Карта замеров сигнала</h1>
+          <p class="hero-copy">
+            Поставь точку передатчика, отметь места замеров и собери наглядную карту
+            покрытия вокруг института.
+          </p>
+        </div>
+
+        <div class="hero-actions">
+          <button id="presentationModeBtn" class="ghost-btn">Скрин-режим</button>
+          <button id="printBtn" class="accent-btn">Печать / PDF</button>
+        </div>
+      </header>
+
+      <section class="panel controls-panel" aria-label="Панель управления">
+        <div class="controls-grid">
+          <label class="field">
+            <span>RSSI (dBm)</span>
+            <input id="rssiInput" type="number" step="1" value="-70" />
+          </label>
+
+          <label class="field">
+            <span>SNR (dB)</span>
+            <input id="snrInput" type="number" step="0.1" value="10" />
+          </label>
+
+          <label class="field note-field">
+            <span>Заметка</span>
+            <input
+              id="noteInput"
+              type="text"
+              maxlength="80"
+              placeholder="коридор, двор, парковка, угол корпуса"
+            />
+          </label>
+
+          <div class="control-group">
+            <span class="group-title">Режим</span>
+            <div class="button-row">
+              <button id="txModeBtn" class="mode-btn">Позиция TX</button>
+              <button id="measureModeBtn" class="mode-btn active">Точка замера</button>
+              <button id="myLocationBtn" class="ghost-btn">Моя позиция</button>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <span class="group-title">Данные</span>
+            <div class="button-row">
+              <button id="savePointBtn" class="ghost-btn" disabled>Сохранить точку</button>
+              <button id="deselectBtn" class="ghost-btn" disabled>Снять выбор</button>
+              <button id="clearBtn" class="danger-btn">Очистить всё</button>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <span class="group-title">Экспорт</span>
+            <div class="button-row">
+              <button id="exportCsvBtn" class="ghost-btn">CSV</button>
+              <button id="exportJsonBtn" class="ghost-btn">JSON</button>
+              <button id="importJsonBtn" class="ghost-btn">Импорт JSON</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="status-row">
+          <span id="modeBadge" class="badge">Режим: точка замера</span>
+          <span id="txBadge" class="badge soft">TX не установлен</span>
+          <span id="countBadge" class="badge soft">Точек: 0</span>
+          <span id="maxDistanceBadge" class="badge soft">Макс. дальность: —</span>
+          <span id="avgRssiBadge" class="badge soft">Средний RSSI: —</span>
+        </div>
+
+        <p class="hint">
+          Сначала поставь <strong>TX</strong>, потом переключись на
+          <strong>точки замера</strong> и кликай по карте. Для слайда используй
+          <strong>Скрин-режим</strong> или <strong>Печать / PDF</strong>.
+        </p>
+      </section>
+
+      <section class="workspace">
+        <div class="map-card panel">
+          <div class="map-header">
+            <div>
+              <p class="mini-label">Карта</p>
+              <h2>Район института</h2>
+            </div>
+            <button id="centerInstituteBtn" class="ghost-btn">К ОГУ</button>
+          </div>
+
+          <div id="map" class="map-frame" aria-label="Интерактивная карта"></div>
+
+          <div class="legend">
+            <span class="legend-title">Качество сигнала:</span>
+            <span class="legend-item">
+              <span class="dot excellent"></span>
+              Отлично (&gt; -70)
+            </span>
+            <span class="legend-item">
+              <span class="dot good"></span>
+              Хорошо (-70...-85)
+            </span>
+            <span class="legend-item">
+              <span class="dot normal"></span>
+              Норм (-85...-100)
+            </span>
+            <span class="legend-item">
+              <span class="dot weak"></span>
+              Слабо (&lt; -100)
+            </span>
+            <span class="legend-item">
+              <span class="dot tx"></span>
+              TX
+            </span>
+          </div>
+        </div>
+
+        <aside class="panel inspector">
+          <div class="map-header">
+            <div>
+              <p class="mini-label">Инспектор</p>
+              <h2>Выбранная точка</h2>
+            </div>
+          </div>
+
+          <div id="selectionEmpty" class="empty-state">
+            Выбери точку на карте или в таблице, чтобы подправить значения.
+          </div>
+
+          <div id="selectionDetails" class="selection-details" hidden>
+            <div class="metric-pair">
+              <span>№ точки</span>
+              <strong id="selectedIndex">—</strong>
+            </div>
+            <div class="metric-pair">
+              <span>Качество</span>
+              <strong id="selectedQuality">—</strong>
+            </div>
+            <div class="metric-pair">
+              <span>Расстояние от TX</span>
+              <strong id="selectedDistance">—</strong>
+            </div>
+            <div class="metric-pair">
+              <span>Широта / долгота</span>
+              <strong id="selectedCoords">—</strong>
+            </div>
+          </div>
+
+          <div class="mini-stats">
+            <article class="mini-card">
+              <span>Лучший RSSI</span>
+              <strong id="bestRssiStat">—</strong>
+            </article>
+            <article class="mini-card">
+              <span>Худший RSSI</span>
+              <strong id="worstRssiStat">—</strong>
+            </article>
+            <article class="mini-card">
+              <span>Лучший SNR</span>
+              <strong id="bestSnrStat">—</strong>
+            </article>
+          </div>
+        </aside>
+      </section>
+
+      <section class="panel table-panel">
+        <div class="table-header">
+          <div>
+            <p class="mini-label">Журнал</p>
+            <h2>Точки замера</h2>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>RSSI</th>
+                <th>SNR</th>
+                <th>Дист. (м)</th>
+                <th>Качество</th>
+                <th>Заметка</th>
+                <th>Координаты</th>
+                <th>Действия</th>
+              </tr>
+            </thead>
+            <tbody id="pointsTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer class="footnote">
+        Карта основана на OpenStreetMap. Для работы нужен интернет, потому что тайлы
+        карты загружаются онлайн.
+      </footer>
+    </div>
+
+    <input id="importInput" type="file" accept=".json,application/json" hidden />
+
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
